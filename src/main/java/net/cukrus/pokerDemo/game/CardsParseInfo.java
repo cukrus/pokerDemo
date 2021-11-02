@@ -1,5 +1,6 @@
 package net.cukrus.pokerDemo.game;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import net.cukrus.pokerDemo.model.Card;
 import net.cukrus.pokerDemo.model.CardSuit;
 
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+@JsonIgnoreProperties({ "ordinalMap", "suitMap" })
 public final class CardsParseInfo {
     private final Card[] cards;
     private final Map<Integer, List<Card>> ordinalMap = new TreeMap<>();
