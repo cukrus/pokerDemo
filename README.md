@@ -1,5 +1,6 @@
 # pokerDemo
 Demo project for poker card game
+Also tests include sudoku dables
 
 ## Assignment
 Write an application in Java that would determine the winning poker player when given two sets of
