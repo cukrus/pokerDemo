@@ -7,11 +7,12 @@ import org.apache.commons.csv.CSVRecord;
 import org.junit.jupiter.api.Test;
 
 import java.io.*;
+import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.LongStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -815,8 +816,9 @@ class SudokuDablesTest {
 
     @Test
     void compareAlgorithms() {
-        int iterations = 5000;
+        int iterations = 50000;
 
+        //slowest (but all very similar)
         List<Long> pythonTimes = new ArrayList<>(iterations);
         IntStream.range(0, iterations).forEach(i -> {
             long start = System.currentTimeMillis();
@@ -825,6 +827,7 @@ class SudokuDablesTest {
             pythonTimes.add(end - start);
         });
 
+        //2nd place
         List<Long> clonedTimes = new ArrayList<>(iterations);
         IntStream.range(0, iterations).forEach(i -> {
             long start = System.currentTimeMillis();
@@ -833,6 +836,7 @@ class SudokuDablesTest {
             clonedTimes.add(end - start);
         });
 
+        //fastest
         List<Long> backtrackTimes = new ArrayList<>(iterations);
         IntStream.range(0, iterations).forEach(i -> {
             long start = System.currentTimeMillis();
@@ -873,6 +877,56 @@ class SudokuDablesTest {
 
         System.out.println("ending with grids size: " + grids.size());
         writeGridsToFile(fileName, grids);
+    }
+
+    @Test
+    void multiThread_generateSolvedBoards_2AndFromFile() throws InterruptedException {
+        System.out.println(LocalDateTime.now() + " starting parsing grids");
+        final String fileName = FOLDER_SUDOKU + SOLVED_FILENAME;
+//        final ConcurrentHashMap<String, Boolean> grids = new ConcurrentHashMap<>();
+        final ConcurrentSkipListSet<String> grids = new ConcurrentSkipListSet<>();
+//        Set<String> grids;
+        if (new File(fileName).exists()) {
+//            readGridsFromFile(fileName).parallelStream().forEach(grid -> grids.put(grid, true));
+            readGridsFromFile(fileName).parallelStream().forEach(grid -> grids.add(grid));
+        }
+        System.out.println(LocalDateTime.now() + " starting with grids size: " + grids.size());
+        //TODO implement
+        int threadCount = 10;
+        System.out.println(LocalDateTime.now() + " executing using " + threadCount + " threads");
+        ExecutorService es = Executors.newFixedThreadPool(threadCount);
+        IntStream.range(0, threadCount).forEach(val -> es.submit(() -> {
+            System.out.println(LocalDateTime.now() + " " + Thread.currentThread().getName() + ": started execution");
+            for (int index = 0; index < 500000; index++) {
+                int[][] gridArray = generateBoardPython();
+                String grid = gridToNrLineString(gridArray);
+//                System.out.println(Thread.currentThread().getName() + ": created grid index " + index);
+//                grids.put(grid, true);
+                grids.add(grid);
+                if (index % 10000 == 0) {
+                    System.out.println(LocalDateTime.now() + " " + Thread.currentThread().getName() + ": current index " + index);
+                }
+            }
+            System.out.println(LocalDateTime.now() + " " + Thread.currentThread().getName() + ": completed execution");
+        }));
+        es.shutdown();
+        es.awaitTermination(Long.MAX_VALUE, TimeUnit.MINUTES);
+        System.out.println(LocalDateTime.now() + " ending generation with grids size: " + grids.size());
+        System.out.println(LocalDateTime.now() + " starting writing to file");
+//        writeGridsToFile(fileName, grids.keys());
+        writeGridsToFile(fileName, grids);
+        System.out.println(LocalDateTime.now() + " ended writing to file");
+    }
+
+    private void writeGridsToFile(String fileName, Enumeration<String> linesToWrite) {
+        try (CSVPrinter printer = new CSVPrinter(new FileWriter(fileName), CSVFormat.DEFAULT)) {
+            while(linesToWrite.hasMoreElements()) {
+                printer.printRecord(linesToWrite.nextElement());
+            }
+        } catch (IOException e) {
+            System.out.println("ERROR writing: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     private void writeGridsToFile(String fileName, Collection<String> linesToWrite) {
@@ -1196,7 +1250,7 @@ class SudokuDablesTest {
     }
 
     //TODO fix this, probably use recursive also
-    private boolean hideGridTillXLeft_new2(int[][] grid, List<Integer> shuffled81, AtomicInteger visible, int xLeft, int iteration) {
+    private void hideGridTillXLeft_new2(int[][] grid, List<Integer> shuffled81, AtomicInteger visible, int xLeft, int iteration) {
 //        System.out.println("iteration: " + iteration);
         for (int gridNr : shuffled81) {
 //            System.out.println("shuffled81 index: " + shuffled81.indexOf(gridNr));
@@ -1212,7 +1266,7 @@ class SudokuDablesTest {
                 if (solutionCount.get() == 1) {
                     visible.getAndDecrement();
                     if (visible.get() == xLeft) {
-                        return true;
+                        return;
                     }
 //                    if (hideGridTillXLeft_new2(grid, shuffled81, visible, xLeft, ++iteration)) {
 //                        return true;
@@ -1226,7 +1280,6 @@ class SudokuDablesTest {
                 }
             }
         }
-        return false;
     }
 
     //TODO fix this, probably use recursive also
